@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+    <script src="https://www.gstatic.com/charts/loader.js"></script>
+    <!-- Bootstrap CSS -->
+        
+	<!-- Latest compiled and minified CSS -->
+	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+
+	<!-- Optional theme -->
+	<!-- <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap-theme.min.css" integrity="sha384-rHyoN1iRsVXV4nD0JutlnGaslCJuC7uwjduW9SVrLvRYooPp2bWYgmgJQIXwl/Sp" crossorigin="anonymous"> -->
+	
+	<link href="https://maxcdn.bootstrapcdn.com/bootswatch/3.3.7/slate/bootstrap.min.css" rel="stylesheet" title="main">
+
+	<!-- Latest compiled and minified JavaScript -->
+	<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+
+    
+    <script src="https://use.fontawesome.com/076cfa8fd8.js"></script>
+    
+    <title>Bedroom AC Control</title>
+  </head>
+<body>
+   <div class="container-fluid" style="margin-bottom: 50px">
+    <div class="page-header">
+     <div class="container" style="margin-bottom: 15px">
+     	<div class="row">
+     	<div class="col">
+      <h1>Airconditioning Control: Bedroom</h1>   
+      	</div>
+		 </div>
+     <div class="row">
+		<ul class="nav nav-pills">
+		  <li><a href="#"><i class="fa fa-thermometer-half fa-2x pull-left"></i>Temperature <span class="badge" id="temperature">---</span></a></li>
+		  <li><a href="#"><i class="fa fa-tint fa-2x pull-left"></i>Humidity <span class="badge" id="humidity">---</span></a></li>
+		  <li><a href="#"><i class="fa fa-tachometer fa-2x pull-left"></i>Pressure <span class="badge" id="pressure">---</span></a></li>
+		</ul>
+      </div>
+	   </div>
+	   </div>
+     <div class="container">
+      <ul class="nav nav-tabs" id="tab" style="margin-bottom: 50px">
+        <li class="active"><a href="#tab_channel0" data-toggle="tab">Channel 0</a></li>
+        <li><a href="#tab_channel1" data-toggle="tab">Channel 1</a></li>
+        <li><a href="#tab_configuration" data-toggle="tab" id="config_tab">Configuration</a></li>
+      </ul>
+      </div>
+      <div class="tab-content">
+        <div class="tab-pane fade in active" id="tab_channel0">
+        	<div class="container">
+        	<div class="bs-component" style="margin-bottom: 50px">
+        		<div class="btn-group btn-group-justified">
+        			<div class="btn btn-lg btn-info" id="ch0_tempdown" type="button">
+  						<i class="fa fa-caret-down fa-2x pull-left"></i><span class="hidden-sm hidden-xs">Temperature Down</span></div>
+          			<div class="btn btn-lg btn-danger" id="ch0_tempup" type="button">
+  						<i class="fa fa-caret-up fa-2x pull-left"></i><span class="hidden-sm hidden-xs">Temperature Up</span></div>
+  				</div>
+			</div>
+        	<div class="bs-component" style="margin-bottom: 50px">
+        		<div class="btn-group btn-group-justified">
+  					<div class="btn btn-lg btn-default" id="ch0_fan" type="button">
+  						<i class="fa fa-refresh fa-2x pull-left"></i><span class="hidden-sm hidden-xs">Fan</span></div>
+					<div class="btn btn-lg btn-default" id="ch0_timer" type="button">
+  						<i class="fa fa-clock-o fa-2x pull-left"></i><span class="hidden-sm hidden-xs">Timer</span></div>
+					<div class="btn btn-lg btn-default" id="ch0_mode" type="button">
+  						<i class="fa fa-snowflake-o fa-2x pull-left"></i><span class="hidden-sm hidden-xs">Mode</span></div>
+  					<div class="btn btn-lg btn-default" id="ch0_swing" type="button">
+  						<i class="fa fa-arrows-h fa-2x pull-left"></i><span class="hidden-sm hidden-xs">Swing</span></div>
+				</div>
+			</div>
+			<div class="bs-component" style="margin-bottom: 15px">
+        		<div class="btn-group btn-group-justified">
+        			<div class="btn btn-lg btn-default" disabled></div>
+        			<div class="btn btn-lg btn-warning" id="ch0_power" type="button">
+  						<i class="fa fa-power-off fa-2x pull-left"></i><span class="hidden-sm hidden-xs">Power</span></div>
+  					<div class="btn btn-lg btn-default" disabled></div>
+  				</div>
+			</div>
+			</div>
+		  </div>
+		  <div class="tab-pane fade in" id="tab_channel1">
+        	<div class="container">
+        	<div class="bs-component" style="margin-bottom: 50px">
+        		<div class="btn-group btn-group-justified">
+        			<div class="btn btn-lg btn-info" id="ch1_tempdown" type="button">
+  						<i class="fa fa-caret-down fa-2x pull-left"></i><span class="hidden-sm hidden-xs">Temperature Down</span></div>
+          			<div class="btn btn-lg btn-danger" id="ch1_tempup" type="button">
+  						<i class="fa fa-caret-up fa-2x pull-left"></i><span class="hidden-sm hidden-xs">Temperature Up</span></div>
+  				</div>
+			</div>
+        	<div class="bs-component" style="margin-bottom: 50px">
+        		<div class="btn-group btn-group-justified">
+  					<div class="btn btn-lg btn-default" id="ch1_fan" type="button">
+  						<i class="fa fa-refresh fa-2x pull-left"></i><span class="hidden-sm hidden-xs">Fan</span></div>
+					<div class="btn btn-lg btn-default" id="ch1_timer" type="button">
+						<i class="fa fa-clock-o fa-2x pull-left"></i><span class="hidden-sm hidden-xs">Timer</span></div>
+					<div class="btn btn-lg btn-default" id="ch1_mode" type="button">
+  						<i class="fa fa-snowflake-o fa-2x pull-left"></i><span class="hidden-sm hidden-xs">Mode</span></div>
+  					<div class="btn btn-lg btn-default" id="ch1_swing" type="button">
+						<i class="fa fa-arrows-h fa-2x pull-left"></i><span class="hidden-sm hidden-xs">Swing</span></div>
+				</div>
+			</div>
+			<div class="bs-component" style="margin-bottom: 15px">
+        		<div class="btn-group btn-group-justified">
+        			<div class="btn btn-lg btn-default" disabled></div>
+        			<div class="btn btn-lg btn-warning" id="ch1_power" type="button">
+  						<i class="fa fa-power-off fa-2x pull-left"></i><span class="hidden-sm hidden-xs">Power</span></div>
+  					<div class="btn btn-lg btn-default" disabled></div>
+  				</div>
+			</div>
+			</div>
+		  </div>
+		  
+		<div class="tab-pane fade" id="tab_configuration">
+			<div class="container">
+			<div class="row" style="margin-bottom: 15px">
+			<div class="col-md-4">
+			<div class="btn btn-default" id="refresh_config"><i class="fa fa-refresh pull-left"></i>Refresh Config</div>
+			<div class="btn btn-default" id="refresh_spiffs"><i class="fa fa-refresh pull-left"></i>Refresh SPIFFS</div>
+			</div>
+			<div class="col-md-8">
+			<div class="alert alert-dismissible alert-info" id="ota_alert" style="display: none">
+						<strong>OTA Mode Enabled</strong> 
+						Your device is waiting for updates.
+						You can upload a new sketch within the next 5 minutes.</div>
+				</div>
+				</div>
+				<div class="row">
+					<div class="col-md-4">
+						<div class="panel panel-info">
+  							<div class="panel-heading">
+ 							   <h3 class="panel-title">Device Info</h3>
+ 								 </div>
+ 								 <div class="panel-body">
+									 <p>Device Name: <code id="device-id">---</code></p>
+									 <p>Device IP Address: <code id="device-ip">---</code></p>
+									<p>Device MQTT Topic: <code id="device-topic">---</code></p>
+									
+ 								 </div>
+								</div>
+								
+					</div>
+					<div class="col-md-4">
+						<div class="panel panel-info">
+  							<div class="panel-heading">
+ 							   <h3 class="panel-title">SPIFFS</h3>
+ 								 </div>
+ 								 <div class="panel-body">
+									 <p>Total Bytes: <code id="total_bytes">---</code></p>
+									 <p>Used Bytes: <code id="used_bytes">---</code></p>
+									<p>Block Size: <code id="block_size">---</code></p>
+									<p>Page Size: <code id="page_size">---</code></p>
+									<p>Max Open Files: <code id="max_open_files">---</code></p>
+									<p>Max Path Length: <code id="max_path_length">---</code></p>
+									
+ 								 </div>
+								</div>
+					</div>
+					<div class="col-md-4">
+					<div class="panel panel-info">
+  							<div class="panel-heading">
+ 							   <h3 class="panel-title">Over the air updates</h3>
+ 								 </div>
+ 								 <div class="panel-body">
+									<button type="button" class="btn-info" id="enable_ota" disabled>
+						<i class="fa fa-check pull-left"></i>Enable OTA</button>
+				<button type="button" class="btn-primary" id="disable_ota" disabled><i class="fa fa-times pull-left"></i>Disable OTA</button>
+									
+ 								 </div>
+								</div>
+						
+				
+					</div>
+					<!--- <div class="col-md-3"></div>		-->			
+					
+				</div>
+				
+			</div>
+		</div>
+	   </div>
+      
+	</div>
+	<!-- Custom JavaScript -->
+	<script src="js/script.js"></script>
+
+
+</body></html>
