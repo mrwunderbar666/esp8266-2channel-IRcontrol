@@ -5,3 +5,4 @@
 - Has two separate Infrared Channels
 - Features a Webinterface to control (mobile friendly)
 - MQTT Support
+- Data Streaming in JSON Format
