@@ -6,3 +6,4 @@
 - Features a Webinterface to control (mobile friendly)
 - MQTT Support
 - Data Streaming in JSON Format
+- With BME280 Temperature, Humidity and Pressure Sensor (publishes data via MQTT and on Webinterface)
