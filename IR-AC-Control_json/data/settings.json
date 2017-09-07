@@ -1,0 +1,7 @@
+{
+  "device_name" : "ESP8266",
+  "channel0_name" : "Channel 0",
+  "channel1_name" : "Channel 1",
+  "channel0_calibration" : 16,
+  "channel1_calibration" : 16,
+}

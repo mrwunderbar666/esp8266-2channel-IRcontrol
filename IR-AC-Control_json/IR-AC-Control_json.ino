@@ -11,12 +11,13 @@
    - OTA Update
    25 Aug 2017
 */
+
 #ifndef UNIT_TEST
 #include <Arduino.h>
 #endif
 
 #include "acircommands.h"
-#include "credentials.h" // Create your own credentials.h file and insert your WiFi Info there
+#include "credentials.h" // Edit credentials.h file and insert your WiFi Info there
 
 // ESP8266 Libraries
 #include <ESP8266WiFi.h>
@@ -55,34 +56,34 @@
 //JSON Library
 #include <ArduinoJson.h>
 
+// JSON Settings File
+#define SETTINGS_FILE "/settings.json"
+
+#include "settingshandler.h" // outsourced the settings JSON & SPIFFS handling to separate file
+
 #define LED     D0        // Led in NodeMCU at pin GPIO16 (D0).
-#define ir_channel0 D2
-#define ir_channel1 D6
-
-//Voltage & Battery Timer
-
-//ADC_MODE(ADC_VCC);
-unsigned long previousMillis = 0; // last time update
-long battery_interval = 60000; // interval at which to do something (milliseconds)
-char battery_status[256];
+// IR Channels LEDs
+#define ir_channel0 D5
+#define ir_channel1 D2
 
 // BME Settings, Monitoring Sensor Interval
 unsigned long bme_previousMillis = 0;
 long bme_interval = 60000;
+int BME_CLK = 9;
+int BME_SDA = 10;
 
 // BME Readings Topic Set here
-const char* bme_topic = "/bedroom/climate";
+const char* bme_topic = "/ESP8266/climate";
 
 // Wifi Settings & OTA Host
 
 const char* ssid = my_ssid;
 const char* password = my_password;
-const char* DEVICE_NAME = "ESP8266-Bedroom";
+const char* DEVICE_NAME = "ESP8266-YOUR-CUSTOM-NAME";
 
 // OTA Flag default is false
 bool ota_flag = false;
 char ota_publish[256];
-// char ota_topic[256];
 char ota_payload[256];
 unsigned long ota_flag_set_Millis = 0;
 unsigned long ota_flag_currentMillis = 0;
@@ -90,14 +91,12 @@ long ota_flag_interval = 5 * 60 * 1000; // Interval for OTA Flag to be active
 
 // Server Settings
 MDNSResponder mdns;
-
 ESP8266WebServer server(80);
 
 // espClient MQTT Settings & JSON Settings
 
-const char* mqtt_server = "192.168.86.105";
-// char* topic = "/bedroom/ac";     //  using wildcard to monitor all traffic from mqtt server
-char* topic = "/";
+const char* mqtt_server = "192.xxx.xxx.xxx"; // Insert MQTT Broker IP Address here
+char* topic = "/";  //  using wildcard to monitor all traffic from mqtt server
 
 // Topic for this device
 String string_device_topic = "/devices/" + String(DEVICE_NAME);
@@ -106,21 +105,19 @@ char device_topic[256];
 const char* all_devices_topic = "/devices";
 char device_command_topic[256];
 
-char message_buff[100];   // initialise storage buffer (i haven't tested to this capacity.)
+char message_buff[100];   // initialise storage buffer
 
 // IR MQTT Topics
 char temp_topic[256];
-String string_channel0_return_topic = "/bedroom/ac/0/status";
-String string_channel1_return_topic = "/bedroom/ac/1/status";
-
+String string_channel0_return_topic = "/esp8266/ac/0/status"; // can edit as you like
+String string_channel1_return_topic = "/esp8266/ac/1/status";
 
 // IR Definitions
-
 IRsend irsend_channel0(ir_channel0);  // An IR LED is controlled by GPIO pin 4 (D2)
 IRsend irsend_channel1(ir_channel1);
 
 /* **************************************************************
-   Convert String to unsigned long
+   Convert String to unsigned long for IR Commands via HTTP_GET
 */
 unsigned long StrToUL(String inputString)
 {
@@ -135,10 +132,11 @@ unsigned long StrToUL(String inputString)
   return result;
 }
 
-// MQTT Setup
 
+// MQTT Setup
 WiFiClient wifiClient;
 PubSubClient client(mqtt_server, 1883, callback, wifiClient);
+
 
 // Temperature BME280 Variables
 Adafruit_BME280 bme; // I2C
@@ -161,7 +159,7 @@ void getBME280() {
     dtostrf(t, 5, 1, temperatureCString);
     dtostrf(h, 5, 1, humidityString);
     dtostrf(p, 6, 1, pressureString);
-    
+
     Serial.println("Temperature: ");
     Serial.println(temperatureCString);
     Serial.println("Humidity: ");
@@ -172,14 +170,15 @@ void getBME280() {
 
     // JSON Variables
     DynamicJsonBuffer jsonBuffer;
-    JsonObject& bme_data = jsonBuffer.createObject();
-    
-    bme_data["temperature"] = String(t);
-    bme_data["humidity"] = String(h);
-    bme_data["pressure"] = String(p);
+    JsonObject& BMEDataObject = jsonBuffer.createObject();
+
+    BMEDataObject["temperature"] = t;
+    BMEDataObject["humidity"] = h;
+    BMEDataObject["pressure"] = p;
+
     char temp_buffer[256];
-    bme_data.printTo(temp_buffer, sizeof(temp_buffer));
-    
+    BMEDataObject.printTo(temp_buffer, sizeof(temp_buffer));
+
     Serial.println("Topic: ");
     Serial.println(bme_topic);
     Serial.println("Payload: ");
@@ -194,16 +193,43 @@ void getBME280() {
 void JSONsendMeasures() {
     // JSON Variables
     DynamicJsonBuffer jsonBuffer;
-    JsonObject& bme_data = jsonBuffer.createObject();
-    
-    bme_data["temperature"] = String(t);
-    bme_data["humidity"] = String(h);
-    bme_data["pressure"] = String(p);
+    JsonObject& BMEDataObject = jsonBuffer.createObject();
+
+    BMEDataObject["temperature"] = String(t);
+    BMEDataObject["humidity"] = String(h);
+    BMEDataObject["pressure"] = String(p);
     char temp_buffer[256];
-    bme_data.printTo(temp_buffer, sizeof(temp_buffer));
+    BMEDataObject.printTo(temp_buffer, sizeof(temp_buffer));
 
     server.send(200, "application/json", temp_buffer);
     Serial.println("Sending measures via JSON");
+}
+
+bool JSONsendSettings(){
+  DynamicJsonBuffer jsonBuffer;
+  JsonObject& SettingsObject = jsonBuffer.createObject();
+
+  SettingsObject["channel0_name"] = channel0_name;
+  SettingsObject["channel1_name"] = channel1_name;
+  SettingsObject["channel0_calibration"] = channel0_calibration;
+  SettingsObject["channel1_calibration"] = channel1_calibration;
+
+  char temp_buffer[1024];
+  SettingsObject.printTo(temp_buffer, sizeof(temp_buffer)); // Export JSON object as a string
+
+  if (!SettingsObject.success()) {
+    Serial.println("Failed to encode settings");
+    return false;
+  }
+
+  Serial.println("Payload: ");
+  Serial.println(temp_buffer);
+  Serial.println("Payload Size: ");
+  Serial.println(sizeof(temp_buffer));
+
+  server.send(200, "application/json", temp_buffer);   // Send settings File to the web client
+  Serial.println("Send Settings");
+  return true;
 }
 
 void JSONsendConfig() {
@@ -212,16 +238,16 @@ void JSONsendConfig() {
         // JSON Variables
         DynamicJsonBuffer jsonBuffer;
         JsonObject& device_json = jsonBuffer.createObject();
-        
+
         device_json["device_name"] = DEVICE_NAME;
         device_json["ip_address"] = local_ip;
         device_json["update_mode"] = String(ota_flag);
         device_json["device_topic"] = string_device_topic;
         char temp_buffer[256];
         device_json.printTo(temp_buffer, sizeof(temp_buffer));
-        
+
         Serial.println("Payload: ");
-        Serial.println(temp_buffer);    
+        Serial.println(temp_buffer);
         Serial.println("Payload Size: ");
         Serial.println(sizeof(temp_buffer));
         client.publish(all_devices_topic, temp_buffer);
@@ -229,7 +255,6 @@ void JSONsendConfig() {
 }
 
 void JSONsendSPIFFS() {
-    //if (spiffsActive) {
     FSInfo fs_info;
     SPIFFS.info(fs_info);
     Serial.print("Total Bytes: ");
@@ -248,24 +273,33 @@ void JSONsendSPIFFS() {
     // JSON Variables
     DynamicJsonBuffer jsonBuffer;
     JsonObject& spiffs_json = jsonBuffer.createObject();
-        
+
     spiffs_json["total_bytes"] = String(fs_info.totalBytes);
     spiffs_json["used_bytes"] = String(fs_info.usedBytes);
     spiffs_json["block_size"] = String(fs_info.blockSize);
     spiffs_json["page_size"] = String(fs_info.pageSize);
     spiffs_json["max_open_files"] = String(fs_info.maxOpenFiles);
     spiffs_json["max_path_length"] = String(fs_info.maxPathLength);
-    
+
     char temp_buffer[256];
     spiffs_json.printTo(temp_buffer, sizeof(temp_buffer));
-    
+
     Serial.println("Payload: ");
-    Serial.println(temp_buffer);    
+    Serial.println(temp_buffer);
     Serial.println("Payload Size: ");
     Serial.println(sizeof(temp_buffer));
     client.publish(device_topic, temp_buffer);
     server.send(200, "application/json", temp_buffer);
-//}
+}
+
+int temperature_calibration_handler(int x) {
+  if (x > 30) {
+    x = 30;
+    }
+  else if (x < 16) {
+    x = 16;
+  }
+  return x;
 }
 
 // Webserver
@@ -278,8 +312,21 @@ void handleIr() {
       if (server.argName(i) == "code") {
         uint32_t code = strtoul(server.arg(i).c_str(), NULL, 10);
         irsend_channel0.sendNEC(code, 32);
-        //temp_topic = channel0_return_topic;
         string_channel0_return_topic.toCharArray(temp_topic, 80);
+
+        if (code == dec_nec_tempup) {
+          channel0_calibration += 1;
+          channel0_calibration = temperature_calibration_handler(channel0_calibration);
+          Serial.println("Current AC Channel 0 Value: ");
+          Serial.println(channel0_calibration);
+        }
+
+        if (code == dec_nec_tempdown) {
+          channel0_calibration -= 1;
+          channel0_calibration = temperature_calibration_handler(channel0_calibration);
+          Serial.println("Current AC Channel 0 Value: ");
+          Serial.println(channel0_calibration);
+        }
 
         digitalWrite(LED, LOW);
         delay(10);
@@ -291,9 +338,21 @@ void handleIr() {
       if (server.argName(i) == "code") {
         uint32_t code = strtoul(server.arg(i).c_str(), NULL, 10);
         irsend_channel1.sendNEC(code, 32);
-        //temp_topic = channel1_return_topic;
         string_channel1_return_topic.toCharArray(temp_topic, 80);
-       
+        if (code == dec_nec_tempup) {
+          channel1_calibration += 1;
+          channel1_calibration = temperature_calibration_handler(channel1_calibration);
+          Serial.println("Current AC Channel 1 Value: ");
+          Serial.println(channel1_calibration);
+        }
+
+        if (code == dec_nec_tempdown) {
+          channel1_calibration -= 1;
+          channel1_calibration = temperature_calibration_handler(channel1_calibration);
+          Serial.println("Current AC Channel 1 Value: ");
+          Serial.println(channel1_calibration);
+        }
+
         digitalWrite(LED, LOW);
         delay(10);
       }
@@ -301,27 +360,29 @@ void handleIr() {
   }
   digitalWrite(LED, HIGH);
   // JSON Variables
-    
+
   DynamicJsonBuffer jsonBuffer;
   JsonObject& code_json = jsonBuffer.createObject();
   code_json["channel"] = String(channel);
   code_json["code"] = String(string_code);
   code_json["success"] = "1";
+  code_json["channel0_calibration"] = channel0_calibration;
+  code_json["channel1_calibration"] = channel1_calibration;
   char temp_buffer[256];
-  code_json.printTo(temp_buffer, sizeof(temp_buffer));  
+  code_json.printTo(temp_buffer, sizeof(temp_buffer));
   Serial.println("Topic: ");
   Serial.println(temp_topic);
   Serial.println("Payload: ");
-  Serial.println(temp_buffer);    
+  Serial.println(temp_buffer);
   Serial.println("Payload Size: ");
   Serial.println(sizeof(temp_buffer));
   client.publish(temp_topic, temp_buffer);
   server.send(200, "application/json", temp_buffer);
 }
 
+
 void handleConfig() {
   String ota = server.arg("ota");
-  //String string_code = server.arg("code");
   if (ota == "0") {
         digitalWrite(LED, LOW);
         delay(10);
@@ -334,9 +395,42 @@ void handleConfig() {
         delay(10);
         ota_flag = true;
         delay(10);
-        firmwareUpdateHandler();  
+        firmwareUpdateHandler();
   }
   digitalWrite(LED, HIGH);
+}
+
+void handleSettings() {
+  String channel = server.arg("channel");
+  String calibration = server.arg("calibration");
+  String channel_name = server.arg("name");
+  if (channel.toInt() == 0) {
+    channel0_calibration = calibration.toInt();
+    channel0_name = channel_name;
+  }
+  if (channel.toInt() == 1) {
+    channel1_calibration = calibration.toInt();
+    channel1_name = channel_name;
+  }
+
+  DynamicJsonBuffer jsonBuffer;
+  JsonObject& settings_json = jsonBuffer.createObject();
+  settings_json["set_channel"] = channel.toInt();
+  settings_json["channel0_name"] = channel0_name;
+  settings_json["channel1_name"] = channel1_name;
+  settings_json["success"] = "1";
+  settings_json["channel0_calibration"] = channel0_calibration;
+  settings_json["channel1_calibration"] = channel1_calibration;
+  char temp_buffer[256];
+  settings_json.printTo(temp_buffer, sizeof(temp_buffer));
+  Serial.println("Topic: ");
+  Serial.println(device_topic);
+  Serial.println("Payload: ");
+  Serial.println(temp_buffer);
+  Serial.println("Payload Size: ");
+  Serial.println(sizeof(temp_buffer));
+  client.publish(temp_topic, temp_buffer);
+  server.send(200, "application/json", temp_buffer);
 }
 
 void handleNotFound() {
@@ -353,25 +447,48 @@ void handleNotFound() {
   server.send(404, "text/plain", message);
 }
 
+/************************************************
+SETUP
+************************************************/
+
+
 void setup(void) {
   pinMode(LED, OUTPUT); // builtin LED
   digitalWrite(LED, LOW);
 
-
-
   // Begin IR Channel 0 & 1
   irsend_channel0.begin();
   irsend_channel1.begin();
+
   Serial.setDebugOutput(true);
   Serial.begin(115200);
   Serial.setDebugOutput(true);
   delay(10);
 
+  Serial.println("\n");
+
+  // Start SPIFFS
+  if (!SPIFFS.begin())
+  {
+    // Serious problem
+    Serial.println("SPIFFS Mount failed");
+  } else {
+    Serial.println("SPIFFS Mount succesfull");
+  }
+  delay(10);
+
+  if (!loadSettings()) {
+    Serial.println("Failed to load Settings");
+  } else {
+    Serial.println("Settings loaded");
+  }
+
   // Begin Wire Library for I2C
-  Wire.begin(D3, D4);
+  Serial.println("Initializing I2C");
+  Wire.begin(BME_SDA, BME_CLK);
   Wire.setClock(100000);
 
-  WiFi.mode(WIFI_STA); // do I need that?
+  WiFi.mode(WIFI_STA);
   delay(10);
   WiFi.begin(ssid, password);
   Serial.println("");
@@ -384,9 +501,8 @@ void setup(void) {
     delay(500);
     Serial.print(".");
   }
-  // OTA Authentication
-  //ArduinoOTA.setPassword((const char *)"8472");
-  ArduinoOTA.setHostname(DEVICE_NAME);
+
+
   Serial.println("");
   Serial.print("Connected to ");
   Serial.println(ssid);
@@ -394,12 +510,18 @@ void setup(void) {
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
 
+
+
   string_device_topic.toCharArray(device_topic, 80);
 
   Serial.println("Device Topic: ");
   Serial.print(device_topic);
   Serial.println("");
 
+  // OTA Authentication
+  Serial.println("Initializing OTA Service");
+  //ArduinoOTA.setPassword((const char *)"1234");
+  ArduinoOTA.setHostname(DEVICE_NAME);
   // More OTA
 
   ArduinoOTA.onStart([]() {
@@ -423,30 +545,23 @@ void setup(void) {
 
   // END OTA
 
-  // Start SPIFFS
-  if (!SPIFFS.begin())
-  {
-    // Serious problem
-    Serial.println("SPIFFS Mount failed");
-  } else {
-    Serial.println("SPIFFS Mount succesfull");
-  }
-
   // Start HTTP Server
   if (mdns.begin(DEVICE_NAME, WiFi.localIP())) {
     Serial.println("MDNS responder started");
   }
   server.serveStatic("/js", SPIFFS, "/js");
   server.serveStatic("/", SPIFFS, "/index.html");
-  //server.on("/", handleRoot);
+
   server.on("/ir", handleIr);
+  server.on("/set", handleSettings);
   server.on("/measures.json", JSONsendMeasures);
   server.on("/current_config.json", JSONsendConfig);
   server.on("/spiffs.json", JSONsendSPIFFS);
   server.on("/config", handleConfig);
-  server.on("/inline", []() {
-  server.send(200, "text/plain", "this works as well");
-  });
+  server.on("/loadSettings", loadSettings);
+  server.on("/saveSettings", saveSettings);
+  server.on("/sendsettings.json", JSONsendSettings);
+
 
   server.onNotFound(handleNotFound);
 
@@ -454,8 +569,8 @@ void setup(void) {
   Serial.println("HTTP server started");
 
   // MQTT Client
-  if (client.connect("ESP8266_Bedroom")) {
-    // JSON Variables    
+  if (client.connect(DEVICE_NAME)) {
+    // JSON Variables
     DynamicJsonBuffer jsonBuffer;
     JsonObject& device_json = jsonBuffer.createObject();
     device_json["device_name"] = DEVICE_NAME;
@@ -464,17 +579,17 @@ void setup(void) {
     device_json["device_topic"] = string_device_topic;
     char temp_buffer[256];
     device_json.printTo(temp_buffer, sizeof(temp_buffer));
-    
+
     Serial.println("Topic: ");
     Serial.println(all_devices_topic);
     Serial.println("Payload: ");
-    Serial.println(temp_buffer);    
+    Serial.println(temp_buffer);
     Serial.println("Payload Size: ");
     Serial.println(sizeof(temp_buffer));
     client.publish(all_devices_topic, temp_buffer);
     JSONsendSPIFFS();
-    client.subscribe("/bedroom/ac/channel0");   // subscribe to channel 0 commends
-    client.subscribe("/bedroom/ac/channel1");   // subscribe to channel 1 commends
+    client.subscribe("/ESP8266/ac/channel0");   // subscribe to channel 0 commends
+    client.subscribe("/ESP8266/ac/channel1");   // subscribe to channel 1 commends
     string_device_command_topic.toCharArray(device_command_topic, 80);
     client.subscribe(device_command_topic);   // subscribe to OTA & Device Commands
   }
@@ -487,10 +602,6 @@ void setup(void) {
   }
 }
 
-  //float getVcc = (float)ESP.getVcc();
-
-  //Serial.println("Voltage: ");
-  //Serial.println(getVcc);
 
 
 void reconnect() {
@@ -500,10 +611,13 @@ void reconnect() {
   while (!client.connected()) {
     Serial.print("Attempting MQTT connection...");
     // Attempt to connect
-    if (client.connect("ESP8266AC")) {
+    if (client.connect(DEVICE_NAME)) {
       Serial.println("connected");
       // Subscribe or resubscribe to a topic
-      // You can subscribe to more topics (to control more LEDs in this example)
+      client.subscribe("/ESP8266/ac/channel0");   // subscribe to channel 0 commends
+      client.subscribe("/ESP8266/ac/channel1");   // subscribe to channel 1 commends
+      string_device_command_topic.toCharArray(device_command_topic, 80);
+      client.subscribe(device_command_topic);   // subscribe to OTA & Device Commands
     } else {
       Serial.print("failed, rc=");
       Serial.print(client.state());
@@ -523,6 +637,8 @@ void reconnect() {
   }
 }
 
+// MQTT Callback Function
+// Handles all commands sent to the ESP8266 via MQTT
 void callback(char* topic, byte* payload, unsigned int length) {
   int i = 0;
 
@@ -546,60 +662,57 @@ void callback(char* topic, byte* payload, unsigned int length) {
   Serial.println("Topic: " + topicString);
   Serial.println("Payload: " + msgString);
 
-  if (topicString == "/bedroom/ac/channel0") {
+  if (topicString == "/ESP8266/ac/channel0") {
     if (msgString == "tempup") {
-      irsend_channel0.sendNEC(0x8166A15E, 32);
+      irsend_channel0.sendNEC(nec_tempup, 32);
       Serial.println("Temperature Up");
-      client.publish("/bedroom/ac/0/status", "Channel 0: TempUp");
-
+      channel0_calibration += 1;
+      channel0_calibration = temperature_calibration_handler(channel0_calibration);
+      Serial.println("Current AC Channel 0 Value: ");
+      Serial.println(channel0_calibration);
       digitalWrite(LED, LOW);
       delay(10);
     }
     else if (msgString == "tempdown") {
-      irsend_channel0.sendNEC(0x816651AE, 32);
+      irsend_channel0.sendNEC(nec_tempdown, 32);
       Serial.println("Temperature Down");
-      client.publish("/bedroom/ac/0/status", "Channel 0: TempDown");
-
+      channel0_calibration -= 1;
+      channel0_calibration = temperature_calibration_handler(channel0_calibration);
+      Serial.println("Current AC Channel 0 Value: ");
+      Serial.println(channel0_calibration);
       digitalWrite(LED, LOW);
       delay(10);
     }
     else if (msgString == "fan") {
-      irsend_channel0.sendNEC(0x81669966, 32);
+      irsend_channel0.sendNEC(nec_fan, 32);
       Serial.println("Fan Switch");
-      client.publish("/bedroom/ac/0/status", "Channel 0: Fan");
 
       digitalWrite(LED, LOW);
       delay(10);
     }
     else if (msgString == "timer") {
-      irsend_channel0.sendNEC(0x8166F906, 32);
+      irsend_channel0.sendNEC(nec_timer, 32);
       Serial.println("Timer");
-      client.publish("/bedroom/ac/0/status", "Channel 0: Timer");
 
       digitalWrite(LED, LOW);
       delay(10);
     }
     else if (msgString == "mode") {
-      irsend_channel0.sendNEC(0x8166D926, 32);
+      irsend_channel0.sendNEC(nec_mode, 32);
       Serial.println("Mode");
-      client.publish("/bedroom/ac/0/status", "Channel 0: Mode");
 
       digitalWrite(LED, LOW);
       delay(10);
     }
     else if (msgString == "swing") {
-      irsend_channel0.sendNEC(0x8166C13E, 32);
+      irsend_channel0.sendNEC(nec_swing, 32);
       Serial.println("Swing");
-      client.publish("/bedroom/ac/0/status", "Channel 0: Swing");
-
       digitalWrite(LED, LOW);
       delay(10);
     }
     else if (msgString == "power") {
-      irsend_channel0.sendNEC(0x8166817E, 32);
+      irsend_channel0.sendNEC(nec_power, 32);
       Serial.println("Power");
-      client.publish("/bedroom/ac/0/status", "Channel 0: Power");
-
       digitalWrite(LED, LOW);
       delay(10);
     }
@@ -616,16 +729,35 @@ void callback(char* topic, byte* payload, unsigned int length) {
       digitalWrite(LED, LOW);
       delay(100);
       digitalWrite(LED, HIGH);
-      client.publish("/bedroom/ac/0/status", "Channel 0: Unknown Command");
+      client.publish("/ESP8266/ac/0/status", "Channel 0: Unknown Command");
     }
+    DynamicJsonBuffer jsonBuffer;
+    JsonObject& code_json = jsonBuffer.createObject();
+    code_json["channel"] = "0";
+    code_json["code"] = msgString;
+    code_json["success"] = "1";
+    code_json["channel0_calibration"] = channel0_calibration;
+    char temp_buffer[256];
+    code_json.printTo(temp_buffer, sizeof(temp_buffer));
+    Serial.println("Topic: ");
+    Serial.println("/ESP8266/ac/0/status");
+    Serial.println("Payload: ");
+    Serial.println(temp_buffer);
+    Serial.println("Payload Size: ");
+    Serial.println(sizeof(temp_buffer));
+    client.publish("/ESP8266/ac/0/status", temp_buffer);
+    server.send(200, "application/json", temp_buffer);
+
   }
-  else if (topicString == "/bedroom/ac/channel1") {
+  else if (topicString == "/ESP8266/ac/channel1") {
     if (msgString == "tempup") {
       irsend_channel1.sendNEC(nec_tempup, 32);
       Serial.println("Temperature Up");
       Serial.println(nec_tempup);
-      client.publish("/bedroom/ac/1/status", "Channel 1: TempUp");
-
+      channel1_calibration += 1;
+      channel1_calibration = temperature_calibration_handler(channel1_calibration);
+      Serial.println("Current AC Channel 1 Value: ");
+      Serial.println(channel1_calibration);
       digitalWrite(LED, LOW);
       delay(10);
     }
@@ -633,8 +765,10 @@ void callback(char* topic, byte* payload, unsigned int length) {
       irsend_channel1.sendNEC(nec_tempdown, 32);
       Serial.println("Temperature Down");
       Serial.println(nec_tempdown);
-      client.publish("/bedroom/ac/1/status", "Channel 1: TempDown");
-
+      channel1_calibration -= 1;
+      channel1_calibration = temperature_calibration_handler(channel1_calibration);
+      Serial.println("Current AC Channel 1 Value: ");
+      Serial.println(channel1_calibration);
       digitalWrite(LED, LOW);
       delay(10);
     }
@@ -642,8 +776,6 @@ void callback(char* topic, byte* payload, unsigned int length) {
       irsend_channel1.sendNEC(nec_fan, 32);
       Serial.println("Fan Switch");
       Serial.println(nec_fan);
-      client.publish("/bedroom/ac/1/status", "Channel 1: Fan");
-
       digitalWrite(LED, LOW);
       delay(10);
     }
@@ -651,9 +783,6 @@ void callback(char* topic, byte* payload, unsigned int length) {
       irsend_channel1.sendNEC(nec_timer, 32);
       Serial.println("Timer");
       Serial.println(nec_timer);
-
-      client.publish("/bedroom/ac/1/status", "Channel 1: Timer");
-
       digitalWrite(LED, LOW);
       delay(10);
     }
@@ -661,9 +790,6 @@ void callback(char* topic, byte* payload, unsigned int length) {
       irsend_channel1.sendNEC(nec_mode, 32);
       Serial.println("Mode");
       Serial.println(nec_mode);
-
-      client.publish("/bedroom/ac/1/status", "Channel 1: Mode");
-
       digitalWrite(LED, LOW);
       delay(10);
     }
@@ -671,18 +797,13 @@ void callback(char* topic, byte* payload, unsigned int length) {
       irsend_channel1.sendNEC(nec_swing, 32);
       Serial.println("Swing");
       Serial.println(nec_swing);
-      client.publish("/bedroom/ac/1/status", "Channel 1: Swing");
-
       digitalWrite(LED, LOW);
       delay(10);
     }
     else if (msgString == "power") {
       irsend_channel1.sendNEC(nec_power, 32);
       Serial.println(nec_power);
-
       Serial.println("Power");
-      client.publish("/bedroom/ac/1/status", "Channel 1: Power");
-
       digitalWrite(LED, LOW);
       delay(10);
     }
@@ -699,8 +820,24 @@ void callback(char* topic, byte* payload, unsigned int length) {
       digitalWrite(LED, LOW);
       delay(100);
       digitalWrite(LED, HIGH);
-      client.publish("/bedroom/ac/1/status", "Unknown Command");
+      client.publish("/ESP8266/ac/1/status", "Unknown Command");
     }
+    DynamicJsonBuffer jsonBuffer;
+    JsonObject& code_json = jsonBuffer.createObject();
+    code_json["channel"] = "1";
+    code_json["code"] = msgString;
+    code_json["success"] = "1";
+    code_json["channel1_calibration"] = channel1_calibration;
+    char temp_buffer[256];
+    code_json.printTo(temp_buffer, sizeof(temp_buffer));
+    Serial.println("Topic: ");
+    Serial.println("/ESP8266/ac/1/status");
+    Serial.println("Payload: ");
+    Serial.println(temp_buffer);
+    Serial.println("Payload Size: ");
+    Serial.println(sizeof(temp_buffer));
+    client.publish("/ESP8266/ac/0/status", temp_buffer);
+    server.send(200, "application/json", temp_buffer);
   }
   else if (topicString == string_device_command_topic) {
       if (msgString == "OTA_Enable") {
@@ -730,46 +867,10 @@ void callback(char* topic, byte* payload, unsigned int length) {
         }
   }
 
-  //  int state = digitalRead(2);  // get the current state of GPIO1 pin
-  //  if (msgString == "1"){    // if there is a "1" published to any topic (#) on the broker then:
-  //    digitalWrite(2, !state);     // set pin to the opposite state
-  //    Serial.println("Switching LED");
-  //  }
   digitalWrite(LED, HIGH);
 }
 
-void battery_handler() {
-  unsigned long currentMillis = millis();
 
-  if (currentMillis - previousMillis > battery_interval) {
-    previousMillis = currentMillis;
-
-    //float getVcc = (float)ESP.getVcc();
-    //Adjustment Value = 0.025
-    float BatteryValue = ((float)analogRead(A0) * 0.025);
-
-    Serial.println("Voltage: ");
-    Serial.println(BatteryValue);
-
-      // JSON Variables
-    
-    DynamicJsonBuffer jsonBuffer;
-    JsonObject& device_json = jsonBuffer.createObject();
-    device_json["battery"] = String(BatteryValue);
-    char temp_buffer[256];
-    device_json.printTo(temp_buffer, sizeof(temp_buffer));
-    
-    Serial.println("Topic: ");
-    string_device_topic.toCharArray(device_topic, 80);
-    Serial.println(device_topic);
-    Serial.println("Payload: ");
-    Serial.println(temp_buffer);    
-    Serial.println("Payload Size: ");
-    Serial.println(sizeof(temp_buffer));
-    client.publish(device_topic, temp_buffer);
-    
-  }
-}
 void firmwareUpdateHandler() {
         // OTA Flag set in Callback function & Server Function
         String ota_flag_string = "OTA Flag Unknown";
@@ -785,7 +886,7 @@ void firmwareUpdateHandler() {
         // JSON Variables
         DynamicJsonBuffer jsonBuffer;
         JsonObject& device_json = jsonBuffer.createObject();
-        
+
         device_json["device_name"] = DEVICE_NAME;
         device_json["ip_address"] = local_ip;
         device_json["update_mode"] = String(ota_flag);
@@ -793,35 +894,36 @@ void firmwareUpdateHandler() {
         device_json["device_topic"] = string_device_topic;
         char temp_buffer[256];
         device_json.printTo(temp_buffer, sizeof(temp_buffer));
-        
+
         Serial.println("Topic: ");
         Serial.println(all_devices_topic);
         Serial.println("Payload: ");
-        Serial.println(temp_buffer);    
+        Serial.println(temp_buffer);
         Serial.println("Payload Size: ");
         Serial.println(sizeof(temp_buffer));
         client.publish(all_devices_topic, temp_buffer);
-        server.send(200, "application/json", temp_buffer);       
+        server.send(200, "application/json", temp_buffer);
 }
 
 void otaFlagHandler() {
   ota_flag_currentMillis = millis();
   if (ota_flag_currentMillis - ota_flag_set_Millis > ota_flag_interval) {
-    //ota_flag_previousMillis = ota_flag_currentMillis;
-
     ota_flag = false;
     firmwareUpdateHandler();
   }
 }
 
 void loop(void) {
-  if(ota_flag) // While Loop??
+  if(ota_flag)
   {
     ArduinoOTA.handle();
     otaFlagHandler();
   }
+  if(!client.connected()) {
+    reconnect();
+  }
+  saveSettings_handler();
+  getBME280();
   server.handleClient();
   client.loop();
-  battery_handler();
-  getBME280();
 }

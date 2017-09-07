@@ -1,7 +1,7 @@
 // JavaScript Document
 "use strict";
 updateMeasures();
-updateConfig();
+loadSettings();
 // auto-update values 
 setInterval(updateMeasures, 60000); //60000 MS == 1 minute
 // Buttons for IR Channel 0
@@ -52,7 +52,6 @@ $('#ch1_timer').click(function () {
 });
 
 // Buttons for configuration
-//$('#config_tab').click(function(){ updateConfig(); 	});
 $('#enable_ota').click(function () {
 	console.log("Enable OTA Button Pressed");
 	setOTA('1');
@@ -70,6 +69,16 @@ $('#refresh_spiffs').click(function () {
 	updateSPIFFS();
 });
 
+$('#submit_channel0').click(function () {
+	console.log("Submit Channel 0 Button Pressed");
+	setChannel0();
+});
+
+$('#submit_channel1').click(function () {
+	console.log("Submit Channel 1 Button Pressed");
+	setChannel1();
+});
+
 function setIR(channel, code) {
 	$.post("ir?channel=" + channel + "&code=" + code).done(function (data) {
 		console.log("Return setIR " + JSON.stringify(data));
@@ -77,6 +86,9 @@ function setIR(channel, code) {
 		console.log(data);
 		if (data.success === "1" || data.success === 1) {
 			$(return_code).html(data.code);
+			$('#channel0_calibration').html(data.channel0_calibration);
+			$('#channel1_calibration').html(data.channel1_calibration);
+
 		} else {
 			$(return_code).html('!');
 		}
@@ -87,7 +99,6 @@ function setIR(channel, code) {
 
 function updateMeasures() {
 	$.getJSON('/measures.json', function (data) {
-		//console.log("Mesures envoyees : " + JSON.stringify(data) + "|" + data.t + "|" + data.h + "|" + data.pa) ;
 		$('#temperature').html(data.temperature + " &deg;C");
 		$('#humidity').html(data.humidity + " %");
 		$('#pressure').html(data.pressure + " mBar");
@@ -116,6 +127,24 @@ function updateConfig() {
 	});
 }
 
+
+function loadSettings() {
+	$.getJSON('/sendsettings.json', function (data) {
+		console.log("Current Settings : " + JSON.stringify(data));
+		$('#channel0_name').html(data.channel0_name);
+		$('#channel1_name').html(data.channel1_name);
+		$('#channel0_calibration').html(data.channel0_calibration);
+		$('#channel1_calibration').html(data.channel1_calibration);
+		$("#channel0_calibration_txt").val(data.channel0_calibration);
+		$("#channel1_calibration_txt").val(data.channel1_calibration);
+		$('#channel0_name_txt').val(data.channel0_name);
+		$('#channel1_name_txt').val(data.channel1_name);
+
+	}).fail(function (err) {
+		console.log("err getJSON sendSettings.json " + JSON.stringify(err));
+	});
+}
+
 function updateSPIFFS() {
 	$.getJSON('/spiffs.json', function (data) {
 		console.log("Current SPIFFS : " + JSON.stringify(data));
@@ -124,7 +153,7 @@ function updateSPIFFS() {
 		$('#block_size').html(data.block_size);
 		$('#page_size').html(data.page_size);
 		$('#max_open_files').html(data.max_open_files);
-		$('#max_path_length').html(data.max_path_length);		
+		$('#max_path_length').html(data.max_path_length);
 	}).fail(function (err) {
 		console.log("err getJSON spiffs.json " + JSON.stringify(err));
 	});
@@ -135,28 +164,22 @@ function setOTA(flag) {
 	$.post("config?ota=" + flag).done(updateConfig());
 }
 
-/*
-				function(data){
-          console.log("Return setOTA " + JSON.stringify(data)); 
-          var return_config = "#" + flag + "_state";
-          console.log(data);
-          if ( data.success === "1" | data.success === 1 ) {
-              $(return_config).html(data.device_name);
-			  if (data.update_mode === "1" | data.update_mode === 1) {
-				  $('#enable_ota').prop('disabled', true);
-				  $('#disable_ota').prop('disabled', false);
-				  $("#ota_alert").show();
-			  }
-			  if (data.update_mode === "0" | data.update_mode === 0) {
-				  $('#enable_ota').prop('disabled', false);
-				  $('#disable_ota').prop('disabled', true);
-				  $("#ota_alert").hide();
-			  }  
-          } else {
-            $(return_config).html('!');
-          }      
-        }).fail(function(err){
-          console.log("err setIR " + JSON.stringify(err));
-        });		
-		}
-		*/
+function saveSettings() {
+	$.post('/saveSettings').done(loadSettings());
+}
+
+function setChannel0() {
+	var calibration = $('#channel0_calibration_txt').val();
+	var channel = 0;
+	var name = $('#channel0_name_txt').val();
+	console.log("Setting Channel " + channel +" :" + ", Name: " + name + ", Calibration: " + calibration);
+	$.post("set?channel=" + channel + "&calibration=" + calibration + "&name=" + name).done(loadSettings());
+}
+
+function setChannel1() {
+	var calibration = $('#channel1_calibration_txt').val();
+	var channel = 1;
+	var name = $('#channel1_name_txt').val();
+	console.log("Setting Channel " + channel +" :" + ", Name: " + name + ", Calibration: " + calibration);
+	$.post("set?channel=" + channel + "&calibration=" + calibration + "&name=" + name).done(loadSettings());
+}
