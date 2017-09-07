@@ -1,5 +1,7 @@
-# ESP8266 NodeMCU ESP12
+# Just another ESP8266 Airconditioning Control
 ## Dual Channel Infrared Control with Webinterface & MQTT
+
+*This is a self-study project, it is far from perfect or optimal. It is working fine for me. I share the code, because maybe someone can learn from it or reuse it.*
 
 - Build in Arduino IDE
 - Has two separate Infrared Channels
