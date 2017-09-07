@@ -9,3 +9,7 @@
 - MQTT Support
 - Data Streaming in JSON Format
 - With BME280 Temperature, Humidity and Pressure Sensor (publishes data via MQTT and on Webinterface)
+
+## Gallery and Screenshots
+
+[See project on hackaday.io](https://hackaday.io/project/27183-just-another-esp8266-infrared-control-device)
